@@ -1,0 +1,11 @@
+{
+  "users": [],
+  "organizations": [
+    {"id":"org-1","name":"Lifeline Community Blood Centre","type":"Blood bank","phone":"+91 98765 43210","email":"help@lifeline.example","city":"Bengaluru","address":"Indiranagar, Bengaluru","license":"DEMO-KA-101","lat":12.9784,"lng":77.6408,"verified":true,"inventory":{"O+":12,"A+":8,"B+":6,"AB+":3,"O-":2}},
+    {"id":"org-2","name":"Jeevan Care Network","type":"NGO","phone":"+91 98111 22334","email":"connect@jeevan.example","city":"Bengaluru","address":"Jayanagar, Bengaluru","license":"DEMO-KA-102","lat":12.925,"lng":77.5938,"verified":true,"inventory":{"O+":7,"A+":4,"B-":2,"AB-":1}}
+  ],
+  "requests": [
+    {"id":"req-1","ownerId":"demo","patientName":"Ananya R.","bloodGroup":"O+","units":2,"component":"Packed red cells","hospital":"Victoria Hospital","city":"Bengaluru","phone":"+91 90000 10001","notes":"Replacement donor accepted at blood bank.","neededBy":"2026-09-23T12:00:00.000Z","lat":12.9634,"lng":77.5739,"status":"open","createdAt":"2026-09-22T08:00:00.000Z"},
+    {"id":"req-2","ownerId":"demo","patientName":"Ravi K.","bloodGroup":"B-","units":1,"component":"Whole blood","hospital":"St. John's Medical College","city":"Bengaluru","phone":"+91 90000 10002","notes":"Please call before arriving.","neededBy":"2026-09-24T08:30:00.000Z","lat":12.9293,"lng":77.6186,"status":"open","createdAt":"2026-09-22T09:00:00.000Z"}
+  ]
+}

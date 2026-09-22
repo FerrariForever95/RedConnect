@@ -1,0 +1,8 @@
+{
+  "name": "redconnect",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Community blood donor and emergency request platform",
+  "scripts": { "start": "node server.js", "dev": "node --watch server.js" },
+  "engines": { "node": ">=18" }
+}
