@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 152" role="img" aria-labelledby="title desc">
+  <title id="title">RedConnect logo</title><desc id="desc">A warm red blood drop formed from two connected shapes</desc>
+  <path fill="#c51f34" d="M64 4C54 25 17 58 17 99c0 29 21 49 47 49s47-20 47-49C111 58 74 25 64 4Z"/>
+  <path fill="#fffaf8" d="M44 79c8-9 18-14 30-14 8 0 15 2 21 7l-10 12c-3-3-7-4-11-4-7 0-13 3-18 9-4 5-7 11-8 18l-17-3c2-10 6-19 13-25Z"/>
+  <circle cx="86" cy="82" r="9" fill="#fffaf8"/>
+</svg>

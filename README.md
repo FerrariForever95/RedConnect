@@ -1,6 +1,6 @@
 # RedConnect
 
-RedConnect is a full-stack blood-support platform built with HTML, CSS, JavaScript, and a dependency-free Node.js backend.
+RedConnect is a full-stack blood-support platform built with HTML, CSS, JavaScript, Supabase, and a dependency-free local Node.js fallback.
 
 ## Features
 
@@ -15,6 +15,7 @@ RedConnect is a full-stack blood-support platform built with HTML, CSS, JavaScri
 - OpenStreetMap map with a list fallback
 - Persistent JSON data store and seeded organizations/requests
 - Responsive, accessible interface for mobile and desktop
+- Production PostgreSQL storage, Supabase Auth, Realtime, and Row Level Security
 
 ## Run
 
@@ -31,6 +32,19 @@ SESSION_SECRET="replace-with-a-long-random-value" npm start
 
 No package installation is required. Map tiles and the Leaflet map library load from the internet. Application data is stored in `data/store.json`.
 
+## Connect Supabase for production
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor**, paste the contents of `supabase/schema.sql`, and run it once.
+3. Open **Project Settings → API** and copy the Project URL and **publishable** key.
+4. Replace the two placeholders in `public/config.js`.
+5. In **Authentication → URL Configuration**, set your deployed site as the Site URL and add your local and deployed redirect URLs.
+6. Deploy the `public` directory to Vercel, Netlify, or another static host.
+
+The publishable key is safe to include in browser code when Row Level Security is enabled. Never put a `service_role` or secret key in `public/config.js`. When Supabase is configured, the site automatically uses PostgreSQL and Supabase Auth. With placeholders unchanged, it falls back to the local Node API and `data/store.json`.
+
+New organizations start as unverified. After reviewing the registration, set `organizations.verified` to `true` in the Supabase Table Editor and add its available units to `organization_inventory`.
+
 ## Production notes
 
-For public deployment, place the app behind HTTPS, replace the JSON store with PostgreSQL or another transactional database, add SMS/email verification, add organization-license review, and configure an abuse-reporting workflow. The included implementation is complete for local demos, prototypes, and further development.
+For public deployment, use HTTPS, keep email confirmation enabled, review organization licenses before verification, and configure an abuse-reporting workflow. Donor contact details require authentication and are protected by database policies.
