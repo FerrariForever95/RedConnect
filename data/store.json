@@ -7,5 +7,7 @@
   "requests": [
     {"id":"req-1","ownerId":"demo","patientName":"Ananya R.","bloodGroup":"O+","units":2,"component":"Packed red cells","hospital":"Victoria Hospital","city":"Bengaluru","phone":"+91 90000 10001","notes":"Replacement donor accepted at blood bank.","neededBy":"2026-09-23T12:00:00.000Z","lat":12.9634,"lng":77.5739,"status":"open","createdAt":"2026-09-22T08:00:00.000Z"},
     {"id":"req-2","ownerId":"demo","patientName":"Ravi K.","bloodGroup":"B-","units":1,"component":"Whole blood","hospital":"St. John's Medical College","city":"Bengaluru","phone":"+91 90000 10002","notes":"Please call before arriving.","neededBy":"2026-09-24T08:30:00.000Z","lat":12.9293,"lng":77.6186,"status":"open","createdAt":"2026-09-22T09:00:00.000Z"}
-  ]
+  ],
+  "donations": [],
+  "contactRequests": []
 }

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Discover nearby blood donors, verified organizations, urgent requests, and OpenStreetMap medical services.">
+  <title>Blood Network — RedConnect</title>
+  <link rel="icon" href="/logo.svg">
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/ui-refresh.css">
+  <link rel="stylesheet" href="/blood-network.css">
+</head>
+<body>
+  <a class="skip-link" href="#networkMain">Skip to discovery</a>
+  <div class="safety-note" role="note"><strong>Life-threatening emergency?</strong> <a href="tel:112">Call 112 now</a> or contact your hospital.</div>
+  <header class="nav network-nav">
+    <a class="brand" href="/" aria-label="RedConnect home"><span class="mark">R</span><span>RedConnect</span></a>
+    <nav aria-label="Main navigation">
+      <a href="/">Home</a>
+      <a href="/#emergency">Emergency</a>
+      <a href="/Blood-Network/" aria-current="page">Blood Network</a>
+      <a href="/#requests">Requests</a>
+      <a href="/" id="profileLink">Profile</a>
+    </nav>
+    <a class="primary small" href="/#requests">Request blood</a>
+  </header>
+
+  <main id="networkMain">
+    <section class="network-hero">
+      <div>
+        <p class="section-kicker">RedConnect discovery</p>
+        <h1>Search the whole <em>Blood Network.</em></h1>
+        <p>Find safe donor profiles, verified organizations, urgent requests, and nearby medical services in one place.</p>
+      </div>
+      <aside aria-label="Privacy information"><strong>Private by design</strong><span>Donor phone numbers and exact GPS coordinates are never shown in public results.</span></aside>
+    </section>
+
+    <section class="network-search" aria-labelledby="searchTitle">
+      <form id="networkForm">
+        <h2 id="searchTitle">What are you looking for?</h2>
+        <label class="search-box"><span class="visually-hidden">Search people, blood groups, organizations, hospitals</span><input id="query" name="q" type="search" placeholder="Search people, blood groups, organizations, hospitals…" autocomplete="off"><button class="primary" type="submit">Search network</button></label>
+        <div class="category-strip" role="list" aria-label="Discovery categories">
+          <button type="button" class="active" data-category="all">All</button>
+          <button type="button" data-category="people">People</button>
+          <button type="button" data-category="hospitals">Hospitals</button>
+          <button type="button" data-category="blood-banks">Blood banks</button>
+          <button type="button" data-category="organizations">Organizations</button>
+          <button type="button" data-category="requests">Blood requests</button>
+          <button type="button" data-category="medical">Nearby medical services</button>
+        </div>
+        <div class="network-filters">
+          <label>Blood group<select id="blood"><option value="">Any group</option><option>O+</option><option>O-</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option></select></label>
+          <label>Distance<select id="distance"><option value="5">Within 5 km</option><option value="10" selected>Within 10 km</option><option value="25">Within 25 km</option><option value="50">Within 50 km</option></select></label>
+          <label class="check-filter"><input id="available" type="checkbox" checked> Available donors</label>
+          <label class="check-filter"><input id="verified" type="checkbox"> Verified only</label>
+          <button type="button" class="secondary" id="nearbyButton">Use my location</button>
+        </div>
+      </form>
+      <p id="searchStatus" class="network-status" role="status">Use your location for distance-aware results, or search by city and category.</p>
+    </section>
+
+    <section class="network-results-shell">
+      <div class="results-toolbar">
+        <div><p class="section-kicker">Unified discovery</p><h2>Network results</h2></div>
+        <div class="view-switch" role="group" aria-label="Result view"><button class="active" id="listView" type="button">List</button><button id="mapView" type="button">Map</button></div>
+      </div>
+      <div class="network-layout" id="networkLayout">
+        <div id="networkResults" class="network-results" aria-live="polite" aria-busy="false">
+          <div class="network-empty"><strong>Start with a search</strong><span>Results from RedConnect and OpenStreetMap will be grouped by source.</span></div>
+        </div>
+        <div class="network-map-wrap" aria-label="Map of Blood Network results"><div id="networkMap"></div><div class="map-source">Map © OpenStreetMap contributors</div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer><a class="brand" href="/"><span class="mark">R</span><span>RedConnect</span></a><p>Safe discovery. Controlled communication.</p><p>© 2026 RedConnect</p></footer>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.min.js"></script>
+  <script src="/config.js"></script>
+  <script src="/database.js"></script>
+  <script src="/blood-network.js"></script>
+</body>
+</html>
