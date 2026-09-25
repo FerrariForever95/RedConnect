@@ -1,14 +1,3 @@
-['account.css', 'ui-refresh.css', 'immersive.css', 'network-shared.css'].forEach(href => {
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = `/${href}`;
-  document.head.appendChild(link);
-});
-const favicon = document.createElement('link');
-favicon.rel = 'icon';
-favicon.href = '/logo.svg';
-document.head.appendChild(favicon);
-
 const $ = (selector, parent = document) => parent.querySelector(selector);
 const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
 const modal = $('#modal');

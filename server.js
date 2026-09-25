@@ -11,21 +11,111 @@ const LOCAL_OTP_ENABLED = process.env.NODE_ENV !== 'production' || process.env.A
 const otpChallenges = new Map();
 
 if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
-  throw new Error('SESSION_SECRET is required when NODE_ENV=production.');
+  console.warn('SESSION_SECRET is not set. Add it in production so login sessions stay private and stable.');
 }
 
 const now = () => new Date().toISOString();
 const id = () => crypto.randomUUID();
 const readStore = () => {
   const data = JSON.parse(fs.readFileSync(DATA, 'utf8'));
-  data.users ||= [];
-  data.organizations ||= [];
-  data.requests ||= [];
-  data.donations ||= [];
-  data.contactRequests ||= [];
-  return data;
+  if (!Array.isArray(data.auth_users)) {
+    return {
+      users:data.users || [], organizations:data.organizations || [], requests:data.requests || [],
+      donations:data.donations || [], contactRequests:data.contactRequests || [], requestMatches:data.requestMatches || []
+    };
+  }
+
+  const profiles = new Map((data.rc_user_profiles || []).map(row => [row.user_id, row]));
+  const locations = new Map((data.rc_user_locations || []).map(row => [row.user_id, row]));
+  const availability = new Map((data.rc_donor_availability || []).map(row => [row.user_id, row]));
+  const users = data.auth_users.map(account => {
+    const profile = profiles.get(account.id) || {};
+    const location = locations.get(account.id) || {};
+    const donor = availability.get(account.id) || {};
+    return {
+      id:account.id, email:account.email || '', password:account.password_hash || '', phone:account.phone || profile.phone_number || '',
+      phoneVerified:Boolean(account.phone_verified ?? profile.phone_verified), role:profile.role || account.role || 'donor',
+      organizationId:account.organization_id || null, name:profile.full_name || '', bloodGroup:profile.blood_group || '',
+      dateOfBirth:profile.date_of_birth || '', gender:profile.gender || '', city:profile.city || location.city || '',
+      state:profile.state || location.state || '', country:profile.country || location.country || 'India',
+      lastDonatedAt:profile.last_donated_at || null, donationCount:Number(profile.donation_count || 0),
+      nextEligibleDate:profile.next_eligible_date || null, profileComplete:Boolean(profile.profile_complete),
+      profileVerified:Boolean(profile.profile_verified), available:Boolean(donor.is_available),
+      availabilityStatus:donor.status || profile.availability_status || 'unavailable',
+      lat:Number.isFinite(Number(location.latitude)) ? Number(location.latitude) : undefined,
+      lng:Number.isFinite(Number(location.longitude)) ? Number(location.longitude) : undefined,
+      createdAt:account.created_at || profile.created_at, updatedAt:account.updated_at || profile.updated_at
+    };
+  });
+  const inventory = new Map();
+  for (const row of data.rc_organization_inventory || []) {
+    if (!inventory.has(row.organization_id)) inventory.set(row.organization_id, {});
+    inventory.get(row.organization_id)[row.blood_group] = Number(row.units || 0);
+  }
+  const services = new Map();
+  for (const row of data.rc_organization_services || []) {
+    if (!services.has(row.organization_id)) services.set(row.organization_id, []);
+    services.get(row.organization_id).push(row.service);
+  }
+  const organizationLocations = new Map((data.rc_organization_locations || []).map(row => [row.organization_id, row]));
+  const organizations = (data.rc_organizations || []).map(row => {
+    const location = organizationLocations.get(row.id) || {};
+    return {
+      id:row.id, ownerId:row.owner_id || null, name:row.name, type:row.type, phone:row.phone, email:row.email,
+      city:row.city || location.city, state:row.state || location.state || '', address:row.address || location.address,
+      license:row.license, lat:Number(row.lat ?? location.latitude), lng:Number(row.lng ?? location.longitude),
+      verified:Boolean(row.verified), emergencyAvailable:Boolean(row.emergency_available), openNow:row.open_now,
+      services:services.get(row.id) || [], inventory:inventory.get(row.id) || {}, createdAt:row.created_at, updatedAt:row.updated_at
+    };
+  });
+  return {
+    users, organizations,
+    requests:(data.rc_blood_requests || []).map(row => ({ id:row.id, ownerId:row.owner_id, patientName:row.patient_name, bloodGroup:row.blood_group, units:row.units, component:row.component, hospital:row.hospital, city:row.city, phone:row.phone, notes:row.notes, neededBy:row.needed_by, lat:row.lat, lng:row.lng, status:row.status, createdAt:row.created_at, updatedAt:row.updated_at })),
+    donations:(data.rc_donation_history || []).map(row => ({ id:row.donation_id, userId:row.user_id, donatedAt:row.donated_at, organizationId:row.organization_id, component:row.component, verificationStatus:row.verification_status, verifiedBy:row.verified_by, verifiedAt:row.verified_at, createdAt:row.created_at })),
+    contactRequests:(data.rc_contact_requests || []).map(row => ({ id:row.id, requesterId:row.requester_id, recipientId:row.recipient_id, bloodRequestId:row.blood_request_id, message:row.message, status:row.status, createdAt:row.created_at, updatedAt:row.updated_at })),
+    requestMatches:data.rc_request_matches || []
+  };
 };
-const writeStore = data => fs.writeFileSync(DATA, JSON.stringify(data, null, 2));
+const writeStore = data => {
+  const output = {
+    auth_users:data.users.map(user => ({
+      id:user.id, email:user.email || '', password_hash:user.password || '', phone:user.phone || '', phone_verified:Boolean(user.phoneVerified),
+      role:user.role || 'donor', organization_id:user.organizationId || null, created_at:user.createdAt || now(), updated_at:user.updatedAt || now()
+    })),
+    rc_user_profiles:data.users.map(user => ({
+      user_id:user.id, full_name:user.name || '', phone_number:user.phone || '', phone_verified:Boolean(user.phoneVerified),
+      blood_group:user.bloodGroup || null, date_of_birth:user.dateOfBirth || null, gender:user.gender || null,
+      city:user.city || '', state:user.state || '', country:user.country || 'India', last_donated_at:user.lastDonatedAt || null,
+      donation_count:Number(user.donationCount || 0), next_eligible_date:user.nextEligibleDate || null,
+      availability_status:user.availabilityStatus || (user.available ? 'available' : 'unavailable'),
+      profile_verified:Boolean(user.profileVerified), profile_complete:Boolean(user.profileComplete), role:user.role || 'donor',
+      created_at:user.createdAt || now(), updated_at:user.updatedAt || now()
+    })),
+    rc_user_locations:data.users.filter(user => Number.isFinite(user.lat) && Number.isFinite(user.lng)).map(user => ({
+      user_id:user.id, latitude:user.lat, longitude:user.lng, city:user.city || '', state:user.state || '', country:user.country || 'India', updated_at:user.updatedAt || now()
+    })),
+    rc_donor_availability:data.users.filter(user => user.role === 'donor').map(user => ({
+      user_id:user.id, is_available:Boolean(user.available), status:user.availabilityStatus || (user.available ? 'available' : 'unavailable'), updated_at:user.updatedAt || now()
+    })),
+    rc_organizations:data.organizations.map(org => ({
+      id:org.id, owner_id:org.ownerId || null, name:org.name, type:org.type, phone:org.phone, email:org.email,
+      city:org.city, state:org.state || '', address:org.address, license:org.license, lat:org.lat, lng:org.lng,
+      verified:Boolean(org.verified), emergency_available:Boolean(org.emergencyAvailable), open_now:org.openNow ?? null,
+      created_at:org.createdAt || now(), updated_at:org.updatedAt || now()
+    })),
+    rc_organization_locations:data.organizations.filter(org => Number.isFinite(org.lat) && Number.isFinite(org.lng)).map(org => ({
+      id:`${org.id}-main`, organization_id:org.id, label:'Main location', address:org.address, city:org.city,
+      state:org.state || '', country:org.country || 'India', latitude:org.lat, longitude:org.lng, created_at:org.createdAt || now()
+    })),
+    rc_organization_services:data.organizations.flatMap(org => (org.services || []).map(service => ({ organization_id:org.id, service, emergency_available:Boolean(org.emergencyAvailable), created_at:org.createdAt || now() }))),
+    rc_organization_inventory:data.organizations.flatMap(org => Object.entries(org.inventory || {}).map(([bloodGroup, units]) => ({ organization_id:org.id, blood_group:bloodGroup, units:Number(units || 0), updated_at:org.updatedAt || now() }))),
+    rc_blood_requests:data.requests.map(request => ({ id:request.id, owner_id:request.ownerId, patient_name:request.patientName, blood_group:request.bloodGroup, units:request.units, component:request.component, hospital:request.hospital, city:request.city, phone:request.phone, notes:request.notes || '', needed_by:request.neededBy, lat:request.lat, lng:request.lng, status:request.status, created_at:request.createdAt, updated_at:request.updatedAt || request.createdAt })),
+    rc_donation_history:data.donations.map(donation => ({ donation_id:donation.id, user_id:donation.userId, donated_at:donation.donatedAt, organization_id:donation.organizationId || null, component:donation.component, verification_status:donation.verificationStatus, verified_by:donation.verifiedBy || null, verified_at:donation.verifiedAt || null, created_at:donation.createdAt })),
+    rc_contact_requests:data.contactRequests.map(item => ({ id:item.id, requester_id:item.requesterId, recipient_id:item.recipientId, blood_request_id:item.bloodRequestId || null, message:item.message || '', status:item.status, created_at:item.createdAt, updated_at:item.updatedAt || item.createdAt })),
+    rc_request_matches:data.requestMatches || []
+  };
+  fs.writeFileSync(DATA, JSON.stringify(output, null, 2));
+};
 const hash = (password, salt = crypto.randomBytes(16).toString('hex')) => `${salt}:${crypto.scryptSync(password, salt, 64).toString('hex')}`;
 const verify = (password, saved = '') => {
   const [salt, key] = saved.split(':');
@@ -460,12 +550,13 @@ const mime = {
   '.mjs':'application/javascript; charset=utf-8', '.png':'image/png', '.svg':'image/svg+xml'
 };
 
-http.createServer(async (req, res) => {
+const app = async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     let file = path.join(PUBLIC, decodeURIComponent(url.pathname));
     if (url.pathname === '/') file = path.join(PUBLIC, 'index.html');
+    if (url.pathname === '/favicon.ico') file = path.join(PUBLIC, 'logo.svg');
     if (file.startsWith(PUBLIC) && fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
     if (!file.startsWith(PUBLIC) || !fs.existsSync(file)) file = path.join(PUBLIC, 'index.html');
     res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' });
@@ -474,4 +565,10 @@ http.createServer(async (req, res) => {
     console.error(error);
     json(res, 500, { error: 'Something went wrong. Please try again.' });
   }
-}).listen(PORT, () => console.log(`RedConnect is running at http://localhost:${PORT}`));
+};
+
+if (require.main === module) {
+  http.createServer(app).listen(PORT, () => console.log(`RedConnect is running at http://localhost:${PORT}`));
+}
+
+module.exports = app;

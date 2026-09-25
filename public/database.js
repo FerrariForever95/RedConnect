@@ -1,6 +1,6 @@
 (function () {
   const config = window.RED_CONNECT_CONFIG || {};
-  const configured = /^https:\/\/.+\.supabase\.co$/.test(config.supabaseUrl || '') && !String(config.supabasePublishableKey || '').startsWith('YOUR_');
+  const configured = !config.forceLocalDatabase && /^https:\/\/.+\.supabase\.co$/.test(config.supabaseUrl || '') && !String(config.supabasePublishableKey || '').startsWith('YOUR_');
   if (!configured || !window.supabase) {
     window.RedConnectDB = { enabled: () => false };
     return;
@@ -49,9 +49,9 @@
   };
   const profile = async userId => {
     const [profileResult, locationResult, availabilityResult] = await Promise.all([
-      client.from('user_profiles').select('*').eq('user_id', userId).single(),
-      client.from('user_locations').select('*').eq('user_id', userId).maybeSingle(),
-      client.from('donor_availability').select('*').eq('user_id', userId).maybeSingle()
+      client.from('rc_user_profiles').select('*').eq('user_id', userId).single(),
+      client.from('rc_user_locations').select('*').eq('user_id', userId).maybeSingle(),
+      client.from('rc_donor_availability').select('*').eq('user_id', userId).maybeSingle()
     ]);
     fail(profileResult.error);
     fail(locationResult.error);
@@ -135,17 +135,17 @@
         eligible.setDate(eligible.getDate() + 90);
         profileUpdate.next_eligible_date = eligible.toISOString().slice(0,10);
       }
-      const profileResult = await client.from('user_profiles').update(profileUpdate).eq('user_id', user.id);
+      const profileResult = await client.from('rc_user_profiles').update(profileUpdate).eq('user_id', user.id);
       fail(profileResult.error);
       if (Number.isFinite(Number(payload.lat)) && Number.isFinite(Number(payload.lng))) {
-        const locationResult = await client.from('user_locations').upsert({
+        const locationResult = await client.from('rc_user_locations').upsert({
           user_id:user.id, latitude:Number(payload.lat), longitude:Number(payload.lng), city:payload.city || null,
           state:payload.state || null, country:payload.country || null, updated_at:new Date().toISOString()
         });
         fail(locationResult.error);
       }
       if (typeof payload.available === 'boolean') {
-        const availabilityResult = await client.from('donor_availability').upsert({
+        const availabilityResult = await client.from('rc_donor_availability').upsert({
           user_id:user.id, is_available:payload.available, status:payload.available ? 'available' : 'unavailable', updated_at:new Date().toISOString()
         });
         fail(availabilityResult.error);
@@ -177,9 +177,9 @@
 
     if (url.pathname === '/api/stats') {
       const [donors, organizations, requests, fulfilled] = await Promise.all([
-        client.from('donor_directory').select('user_id', { count:'exact', head:true }).eq('availability_status','available'),
-        client.from('organizations').select('id', { count:'exact', head:true }).eq('verified',true),
-        client.from('blood_request_directory').select('request_id', { count:'exact', head:true }).gt('needed_by',new Date().toISOString()),
+        client.from('rc_donor_directory').select('user_id', { count:'exact', head:true }).eq('availability_status','available'),
+        client.from('rc_organizations').select('id', { count:'exact', head:true }).eq('verified',true),
+        client.from('rc_blood_request_directory').select('request_id', { count:'exact', head:true }).gt('needed_by',new Date().toISOString()),
         Promise.resolve({ count:0, error:null })
       ]);
       [donors, organizations, requests, fulfilled].forEach(result => fail(result.error));
@@ -190,7 +190,7 @@
       const blood = url.searchParams.get('blood');
       const lat = queryNumber(url, 'lat');
       const lng = queryNumber(url, 'lng');
-      let query = client.from('donor_directory').select('*').eq('availability_status','available');
+      let query = client.from('rc_donor_directory').select('*').eq('availability_status','available');
       if (blood) query = query.in('blood_group', compatibility[blood]);
       const { data, error } = await query;
       fail(error);
@@ -209,14 +209,14 @@
       const blood = url.searchParams.get('blood');
       const lat = queryNumber(url, 'lat');
       const lng = queryNumber(url, 'lng');
-      const { data, error } = await client.from('organizations').select('*, organization_inventory(blood_group,units), organization_services(service,emergency_available)').eq('verified',true);
+      const { data, error } = await client.from('rc_organizations').select('*, rc_organization_inventory(blood_group,units), rc_organization_services(service,emergency_available)').eq('verified',true);
       fail(error);
       return (data || []).map(row => {
         const item = camel(row);
-        item.inventory = Object.fromEntries((row.organization_inventory || []).map(entry => [entry.blood_group,entry.units]));
-        item.services = (row.organization_services || []).map(entry => entry.service);
-        delete item.organizationInventory;
-        delete item.organizationServices;
+        item.inventory = Object.fromEntries((row.rc_organization_inventory || []).map(entry => [entry.blood_group,entry.units]));
+        item.services = (row.rc_organization_services || []).map(entry => entry.service);
+        delete item.rcOrganizationInventory;
+        delete item.rcOrganizationServices;
         item.distanceKm = Number.isFinite(lat) && Number.isFinite(lng) && item.lat && item.lng ? distance(lat,lng,item.lat,item.lng) : null;
         return item;
       }).filter(item => !blood || Number(item.inventory[blood] || 0) > 0).sort((a,b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
@@ -259,8 +259,8 @@
     if (url.pathname === '/api/requests' && method === 'GET') {
       const mine = url.searchParams.get('mine') === 'true';
       let query;
-      if (mine) query = client.from('blood_requests').select('*').eq('owner_id',(await currentAuthUser()).id).order('needed_by');
-      else query = client.from('blood_request_directory').select('*').gt('needed_by',new Date().toISOString()).order('needed_by');
+      if (mine) query = client.from('rc_blood_requests').select('*').eq('owner_id',(await currentAuthUser()).id).order('needed_by');
+      else query = client.from('rc_blood_request_directory').select('*').gt('needed_by',new Date().toISOString()).order('needed_by');
       const { data, error } = await query;
       fail(error);
       return (data || []).map(item => {
@@ -278,21 +278,21 @@
         notes:payload.notes || '', needed_by:new Date(payload.neededBy).toISOString(),
         lat:Number(payload.lat) || null, lng:Number(payload.lng) || null
       };
-      const { data, error } = await client.from('blood_requests').insert(row).select().single();
+      const { data, error } = await client.from('rc_blood_requests').insert(row).select().single();
       fail(error);
       return camel(data);
     }
 
     if (/^\/api\/requests\/[^/]+$/.test(url.pathname) && method === 'PATCH') {
       const requestId = url.pathname.split('/').pop();
-      const { data, error } = await client.from('blood_requests').update({ status:payload.status, updated_at:new Date().toISOString() }).eq('id',requestId).select().single();
+      const { data, error } = await client.from('rc_blood_requests').update({ status:payload.status, updated_at:new Date().toISOString() }).eq('id',requestId).select().single();
       fail(error);
       return camel(data);
     }
 
     if (url.pathname === '/api/contact-requests' && method === 'POST') {
       const user = await currentAuthUser();
-      const { data, error } = await client.from('contact_requests').insert({
+      const { data, error } = await client.from('rc_contact_requests').insert({
         requester_id:user.id, recipient_id:payload.recipientId, blood_request_id:payload.bloodRequestId || null,
         message:payload.message || 'I would like to coordinate a blood donation.'
       }).select().single();
@@ -302,12 +302,12 @@
 
     if (url.pathname === '/api/contact-requests' && method === 'GET') {
       const user = await currentAuthUser();
-      const { data, error } = await client.from('contact_requests').select('*').or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`).order('created_at',{ascending:false});
+      const { data, error } = await client.from('rc_contact_requests').select('*').or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`).order('created_at',{ascending:false});
       fail(error);
       const ids = [...new Set((data || []).map(item => item.requester_id === user.id ? item.recipient_id : item.requester_id))];
       let names = {};
       if (ids.length) {
-        const directoryResult = await client.from('donor_directory').select('user_id,display_name').in('user_id',ids);
+        const directoryResult = await client.from('rc_donor_directory').select('user_id,display_name').in('user_id',ids);
         fail(directoryResult.error);
         names = Object.fromEntries((directoryResult.data || []).map(item => [item.user_id,item.display_name]));
       }
@@ -321,16 +321,16 @@
 
     if (/^\/api\/contact-requests\/[^/]+$/.test(url.pathname) && method === 'PATCH') {
       const requestId = url.pathname.split('/').pop();
-      const { data, error } = await client.from('contact_requests').update({ status:payload.status, updated_at:new Date().toISOString() }).eq('id',requestId).select().single();
+      const { data, error } = await client.from('rc_contact_requests').update({ status:payload.status, updated_at:new Date().toISOString() }).eq('id',requestId).select().single();
       fail(error);
       return camel(data);
     }
 
     if (url.pathname === '/api/donations' && method === 'GET') {
       const user = await currentAuthUser();
-      let query = client.from('donation_history').select('*').order('donated_at',{ascending:false});
+      let query = client.from('rc_donation_history').select('*').order('donated_at',{ascending:false});
       if (url.searchParams.get('pending') === 'true') {
-        const organizationResult = await client.from('organizations').select('id').eq('owner_id',user.id).single();
+        const organizationResult = await client.from('rc_organizations').select('id').eq('owner_id',user.id).single();
         fail(organizationResult.error);
         query = query.eq('organization_id',organizationResult.data.id).eq('verification_status','pending');
       } else query = query.eq('user_id',user.id);
@@ -341,7 +341,7 @@
 
     if (url.pathname === '/api/donations' && method === 'POST') {
       const user = await currentAuthUser();
-      const { data, error } = await client.from('donation_history').insert({
+      const { data, error } = await client.from('rc_donation_history').insert({
         user_id:user.id, donated_at:new Date(payload.donatedAt).toISOString(),
         organization_id:payload.organizationId || null, component:payload.component, verification_status:'pending'
       }).select().single();
@@ -352,7 +352,7 @@
     if (/^\/api\/donations\/[^/]+$/.test(url.pathname) && method === 'PATCH') {
       const user = await currentAuthUser();
       const donationId = url.pathname.split('/').pop();
-      const { data, error } = await client.from('donation_history').update({
+      const { data, error } = await client.from('rc_donation_history').update({
         verification_status:payload.verificationStatus,
         verified_by:user.id
       }).eq('donation_id',donationId).select().single();
@@ -364,19 +364,19 @@
   }
 
   async function requestDonorDirectory(blood) {
-    let query = client.from('donor_directory').select('*').eq('availability_status','available');
+    let query = client.from('rc_donor_directory').select('*').eq('availability_status','available');
     if (blood) query = query.in('blood_group',compatibility[blood]);
     const { data, error } = await query;
     fail(error);
     return (data || []).map(camel);
   }
   async function requestOrganizations() {
-    const { data, error } = await client.from('organizations').select('id,name,type,city,address,verified,emergency_available,lat,lng').eq('verified',true);
+    const { data, error } = await client.from('rc_organizations').select('id,name,type,city,address,verified,emergency_available,lat,lng').eq('verified',true);
     fail(error);
     return (data || []).map(camel);
   }
   async function requestOpenRequests() {
-    const { data, error } = await client.from('blood_request_directory').select('*').gt('needed_by',new Date().toISOString());
+    const { data, error } = await client.from('rc_blood_request_directory').select('*').gt('needed_by',new Date().toISOString());
     fail(error);
     return (data || []).map(row => {
       const item = camel(row);
@@ -385,8 +385,8 @@
   }
 
   client.channel('redconnect-network')
-    .on('postgres_changes',{ event:'*', schema:'public', table:'blood_request_directory' },() => window.dispatchEvent(new CustomEvent('redconnect:requests-changed')))
-    .on('postgres_changes',{ event:'*', schema:'public', table:'contact_requests' },() => window.dispatchEvent(new CustomEvent('redconnect:contacts-changed')))
+    .on('postgres_changes',{ event:'*', schema:'public', table:'rc_blood_request_directory' },() => window.dispatchEvent(new CustomEvent('redconnect:requests-changed')))
+    .on('postgres_changes',{ event:'*', schema:'public', table:'rc_contact_requests' },() => window.dispatchEvent(new CustomEvent('redconnect:contacts-changed')))
     .subscribe();
 
   client.auth.onAuthStateChange(event => {

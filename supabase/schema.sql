@@ -3,7 +3,7 @@
 create extension if not exists pgcrypto;
 create schema if not exists private;
 
-create table if not exists public.user_profiles (
+create table if not exists public.rc_user_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
   phone_number text not null default '',
@@ -26,8 +26,8 @@ create table if not exists public.user_profiles (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.user_locations (
-  user_id uuid primary key references public.user_profiles(user_id) on delete cascade,
+create table if not exists public.rc_user_locations (
+  user_id uuid primary key references public.rc_user_profiles(user_id) on delete cascade,
   latitude double precision not null check (latitude between -90 and 90),
   longitude double precision not null check (longitude between -180 and 180),
   city text,
@@ -37,8 +37,8 @@ create table if not exists public.user_locations (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.donor_availability (
-  user_id uuid primary key references public.user_profiles(user_id) on delete cascade,
+create table if not exists public.rc_donor_availability (
+  user_id uuid primary key references public.rc_user_profiles(user_id) on delete cascade,
   is_available boolean not null default false,
   status text not null default 'unavailable' check (status in ('available','unavailable','temporarily_unavailable')),
   available_until timestamptz,
@@ -46,8 +46,8 @@ create table if not exists public.donor_availability (
 );
 
 -- Safe discovery projection. It never contains phone, birth date, address, or exact coordinates.
-create table if not exists public.donor_directory (
-  user_id uuid primary key references public.user_profiles(user_id) on delete cascade,
+create table if not exists public.rc_donor_directory (
+  user_id uuid primary key references public.rc_user_profiles(user_id) on delete cascade,
   display_name text not null,
   blood_group text not null,
   city text,
@@ -62,7 +62,7 @@ create table if not exists public.donor_directory (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.organizations (
+create table if not exists public.rc_organizations (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null unique references auth.users(id) on delete cascade,
   name text not null,
@@ -80,13 +80,13 @@ create table if not exists public.organizations (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table public.organizations add column if not exists emergency_available boolean not null default false;
-alter table public.organizations add column if not exists open_now boolean;
-alter table public.organizations add column if not exists updated_at timestamptz not null default now();
+alter table public.rc_organizations add column if not exists emergency_available boolean not null default false;
+alter table public.rc_organizations add column if not exists open_now boolean;
+alter table public.rc_organizations add column if not exists updated_at timestamptz not null default now();
 
-create table if not exists public.organization_locations (
+create table if not exists public.rc_organization_locations (
   id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null references public.organizations(id) on delete cascade,
+  organization_id uuid not null references public.rc_organizations(id) on delete cascade,
   label text not null default 'Main location',
   address text not null,
   city text not null,
@@ -97,23 +97,23 @@ create table if not exists public.organization_locations (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.organization_services (
-  organization_id uuid not null references public.organizations(id) on delete cascade,
+create table if not exists public.rc_organization_services (
+  organization_id uuid not null references public.rc_organizations(id) on delete cascade,
   service text not null,
   emergency_available boolean not null default false,
   created_at timestamptz not null default now(),
   primary key (organization_id, service)
 );
 
-create table if not exists public.organization_inventory (
-  organization_id uuid not null references public.organizations(id) on delete cascade,
+create table if not exists public.rc_organization_inventory (
+  organization_id uuid not null references public.rc_organizations(id) on delete cascade,
   blood_group text not null check (blood_group in ('O+','O-','A+','A-','B+','B-','AB+','AB-')),
   units integer not null default 0 check (units >= 0),
   updated_at timestamptz not null default now(),
   primary key (organization_id, blood_group)
 );
 
-create table if not exists public.blood_requests (
+create table if not exists public.rc_blood_requests (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
   patient_name text not null,
@@ -133,8 +133,8 @@ create table if not exists public.blood_requests (
 );
 
 -- Safe request projection. Patient contact details and exact coordinates never enter this table.
-create table if not exists public.blood_request_directory (
-  request_id uuid primary key references public.blood_requests(id) on delete cascade,
+create table if not exists public.rc_blood_request_directory (
+  request_id uuid primary key references public.rc_blood_requests(id) on delete cascade,
   blood_group text not null,
   units smallint not null,
   component text not null,
@@ -146,22 +146,22 @@ create table if not exists public.blood_request_directory (
   created_at timestamptz not null
 );
 
-create table if not exists public.donation_history (
+create table if not exists public.rc_donation_history (
   donation_id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   donated_at timestamptz not null,
-  organization_id uuid references public.organizations(id) on delete set null,
+  organization_id uuid references public.rc_organizations(id) on delete set null,
   component text not null,
   verification_status text not null default 'pending' check (verification_status in ('pending','verified','rejected')),
   verified_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.contact_requests (
+create table if not exists public.rc_contact_requests (
   id uuid primary key default gen_random_uuid(),
   requester_id uuid not null references auth.users(id) on delete cascade,
   recipient_id uuid not null references auth.users(id) on delete cascade,
-  blood_request_id uuid references public.blood_requests(id) on delete set null,
+  blood_request_id uuid references public.rc_blood_requests(id) on delete set null,
   message text not null default '',
   status text not null default 'pending' check (status in ('pending','approved','declined','cancelled')),
   shared_phone text,
@@ -169,52 +169,60 @@ create table if not exists public.contact_requests (
   updated_at timestamptz not null default now(),
   check (requester_id <> recipient_id)
 );
-alter table public.contact_requests add column if not exists shared_phone text;
+alter table public.rc_contact_requests add column if not exists shared_phone text;
 
-create unique index if not exists one_pending_contact_request
-  on public.contact_requests (requester_id, recipient_id)
+create unique index if not exists rc_one_pending_contact_request
+  on public.rc_contact_requests (requester_id, recipient_id)
   where status = 'pending';
 
-create table if not exists public.request_matches (
+create table if not exists public.rc_request_matches (
   id uuid primary key default gen_random_uuid(),
-  blood_request_id uuid not null references public.blood_requests(id) on delete cascade,
+  blood_request_id uuid not null references public.rc_blood_requests(id) on delete cascade,
   donor_id uuid references auth.users(id) on delete cascade,
-  organization_id uuid references public.organizations(id) on delete cascade,
+  organization_id uuid references public.rc_organizations(id) on delete cascade,
   match_status text not null default 'suggested' check (match_status in ('suggested','contacted','accepted','declined','completed')),
   distance_km numeric(7,2),
   created_at timestamptz not null default now(),
   check ((donor_id is not null)::integer + (organization_id is not null)::integer = 1)
 );
 
-create index if not exists donor_directory_search_idx on public.donor_directory (blood_group, availability_status, city);
-create index if not exists blood_requests_open_idx on public.blood_requests (needed_by) where status = 'open';
-create index if not exists contact_requests_recipient_idx on public.contact_requests (recipient_id, status, created_at desc);
-create index if not exists donation_history_user_idx on public.donation_history (user_id, donated_at desc);
+create index if not exists rc_donor_directory_search_idx on public.rc_donor_directory (blood_group, availability_status, city);
+create index if not exists rc_blood_requests_open_idx on public.rc_blood_requests (needed_by) where status = 'open';
+create index if not exists rc_blood_requests_owner_idx on public.rc_blood_requests (owner_id);
+create index if not exists rc_contact_requests_recipient_idx on public.rc_contact_requests (recipient_id, status, created_at desc);
+create index if not exists rc_contact_requests_blood_request_idx on public.rc_contact_requests (blood_request_id);
+create index if not exists rc_donation_history_user_idx on public.rc_donation_history (user_id, donated_at desc);
+create index if not exists rc_donation_history_organization_idx on public.rc_donation_history (organization_id);
+create index if not exists rc_donation_history_verified_by_idx on public.rc_donation_history (verified_by);
+create index if not exists rc_organization_locations_organization_idx on public.rc_organization_locations (organization_id);
+create index if not exists rc_request_matches_request_idx on public.rc_request_matches (blood_request_id);
+create index if not exists rc_request_matches_donor_idx on public.rc_request_matches (donor_id);
+create index if not exists rc_request_matches_organization_idx on public.rc_request_matches (organization_id);
 
-create or replace function private.sync_donor_directory(target_user_id uuid)
+create or replace function private.sync_rc_donor_directory(target_user_id uuid)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare profile public.user_profiles%rowtype;
-declare location public.user_locations%rowtype;
-declare availability public.donor_availability%rowtype;
+declare profile public.rc_user_profiles%rowtype;
+declare location public.rc_user_locations%rowtype;
+declare availability public.rc_donor_availability%rowtype;
 declare masked_name text;
 begin
-  select * into profile from public.user_profiles where user_id = target_user_id;
+  select * into profile from public.rc_user_profiles where user_id = target_user_id;
   if not found or profile.role <> 'donor' then
-    delete from public.donor_directory where user_id = target_user_id;
+    delete from public.rc_donor_directory where user_id = target_user_id;
     return;
   end if;
-  select * into location from public.user_locations where user_id = target_user_id;
-  select * into availability from public.donor_availability where user_id = target_user_id;
+  select * into location from public.rc_user_locations where user_id = target_user_id;
+  select * into availability from public.rc_donor_availability where user_id = target_user_id;
   masked_name := case
     when profile.profile_verified then coalesce(profile.full_name, 'Verified donor')
     else concat(split_part(coalesce(profile.full_name, 'Donor'), ' ', 1), ' ', left(split_part(coalesce(profile.full_name, ''), ' ', 2), 1), case when split_part(coalesce(profile.full_name, ''), ' ', 2) <> '' then '.' else '' end)
   end;
   if profile.profile_complete and profile.blood_group is not null then
-    insert into public.donor_directory (
+    insert into public.rc_donor_directory (
       user_id, display_name, blood_group, city, state, country, approximate_latitude, approximate_longitude,
       last_donated_at, donation_count, availability_status, profile_verified, updated_at
     ) values (
@@ -237,27 +245,27 @@ begin
       profile_verified = excluded.profile_verified,
       updated_at = now();
   else
-    delete from public.donor_directory where user_id = target_user_id;
+    delete from public.rc_donor_directory where user_id = target_user_id;
   end if;
 end;
 $$;
 
-revoke all on function private.sync_donor_directory(uuid) from public, anon, authenticated;
+revoke all on function private.sync_rc_donor_directory(uuid) from public, anon, authenticated;
 
-create or replace function private.sync_donor_directory_trigger()
+create or replace function private.sync_rc_donor_directory_trigger()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  perform private.sync_donor_directory(coalesce(new.user_id, old.user_id));
+  perform private.sync_rc_donor_directory(coalesce(new.user_id, old.user_id));
   return coalesce(new, old);
 end;
 $$;
-revoke all on function private.sync_donor_directory_trigger() from public, anon, authenticated;
+revoke all on function private.sync_rc_donor_directory_trigger() from public, anon, authenticated;
 
-create or replace function private.sync_blood_request_directory()
+create or replace function private.sync_rc_blood_request_directory()
 returns trigger
 language plpgsql
 security definer
@@ -265,7 +273,7 @@ set search_path = ''
 as $$
 begin
   if new.status = 'open' and new.needed_by > now() then
-    insert into public.blood_request_directory (
+    insert into public.rc_blood_request_directory (
       request_id, blood_group, units, component, hospital, city, needed_by,
       approximate_latitude, approximate_longitude, created_at
     ) values (
@@ -281,23 +289,23 @@ begin
       approximate_latitude = excluded.approximate_latitude,
       approximate_longitude = excluded.approximate_longitude;
   else
-    delete from public.blood_request_directory where request_id = new.id;
+    delete from public.rc_blood_request_directory where request_id = new.id;
   end if;
   return new;
 end;
 $$;
-revoke all on function private.sync_blood_request_directory() from public, anon, authenticated;
-drop trigger if exists sync_public_blood_request on public.blood_requests;
-create trigger sync_public_blood_request after insert or update on public.blood_requests
-for each row execute function private.sync_blood_request_directory();
+revoke all on function private.sync_rc_blood_request_directory() from public, anon, authenticated;
+drop trigger if exists rc_sync_public_blood_request on public.rc_blood_requests;
+create trigger rc_sync_public_blood_request after insert or update on public.rc_blood_requests
+for each row execute function private.sync_rc_blood_request_directory();
 
-insert into public.blood_request_directory (
+insert into public.rc_blood_request_directory (
   request_id, blood_group, units, component, hospital, city, needed_by,
   approximate_latitude, approximate_longitude, created_at
 )
 select id, blood_group, units, component, hospital, city, needed_by,
   round(lat::numeric, 2), round(lng::numeric, 2), created_at
-from public.blood_requests
+from public.rc_blood_requests
 where status = 'open' and needed_by > now()
 on conflict (request_id) do update set
   blood_group = excluded.blood_group,
@@ -309,7 +317,7 @@ on conflict (request_id) do update set
   approximate_latitude = excluded.approximate_latitude,
   approximate_longitude = excluded.approximate_longitude;
 
-create or replace function private.share_approved_contact()
+create or replace function private.rc_share_approved_contact()
 returns trigger
 language plpgsql
 security definer
@@ -317,19 +325,19 @@ set search_path = ''
 as $$
 begin
   if new.status = 'approved' and old.status is distinct from 'approved' then
-    select phone_number into new.shared_phone from public.user_profiles where user_id = new.recipient_id;
+    select phone_number into new.shared_phone from public.rc_user_profiles where user_id = new.recipient_id;
   elsif new.status <> 'approved' then
     new.shared_phone := null;
   end if;
   return new;
 end;
 $$;
-revoke all on function private.share_approved_contact() from public, anon, authenticated;
-drop trigger if exists share_contact_after_approval on public.contact_requests;
-create trigger share_contact_after_approval before update of status on public.contact_requests
-for each row execute function private.share_approved_contact();
+revoke all on function private.rc_share_approved_contact() from public, anon, authenticated;
+drop trigger if exists rc_share_contact_after_approval on public.rc_contact_requests;
+create trigger rc_share_contact_after_approval before update of status on public.rc_contact_requests
+for each row execute function private.rc_share_approved_contact();
 
-create or replace function private.apply_verified_donation()
+create or replace function private.rc_apply_verified_donation()
 returns trigger
 language plpgsql
 security definer
@@ -337,7 +345,7 @@ set search_path = ''
 as $$
 begin
   if new.verification_status = 'verified' and old.verification_status is distinct from 'verified' then
-    update public.user_profiles
+    update public.rc_user_profiles
     set last_donated_at = new.donated_at::date,
         donation_count = donation_count + 1,
         next_eligible_date = new.donated_at::date + 90,
@@ -347,29 +355,29 @@ begin
   return new;
 end;
 $$;
-revoke all on function private.apply_verified_donation() from public, anon, authenticated;
-drop trigger if exists apply_verified_donation on public.donation_history;
-create trigger apply_verified_donation after update of verification_status on public.donation_history
-for each row execute function private.apply_verified_donation();
+revoke all on function private.rc_apply_verified_donation() from public, anon, authenticated;
+drop trigger if exists rc_apply_verified_donation on public.rc_donation_history;
+create trigger rc_apply_verified_donation after update of verification_status on public.rc_donation_history
+for each row execute function private.rc_apply_verified_donation();
 
-drop trigger if exists sync_directory_from_profile on public.user_profiles;
-create trigger sync_directory_from_profile after insert or update or delete on public.user_profiles
-for each row execute function private.sync_donor_directory_trigger();
-drop trigger if exists sync_directory_from_location on public.user_locations;
-create trigger sync_directory_from_location after insert or update or delete on public.user_locations
-for each row execute function private.sync_donor_directory_trigger();
-drop trigger if exists sync_directory_from_availability on public.donor_availability;
-create trigger sync_directory_from_availability after insert or update or delete on public.donor_availability
-for each row execute function private.sync_donor_directory_trigger();
+drop trigger if exists rc_sync_directory_from_profile on public.rc_user_profiles;
+create trigger rc_sync_directory_from_profile after insert or update or delete on public.rc_user_profiles
+for each row execute function private.sync_rc_donor_directory_trigger();
+drop trigger if exists rc_sync_directory_from_location on public.rc_user_locations;
+create trigger rc_sync_directory_from_location after insert or update or delete on public.rc_user_locations
+for each row execute function private.sync_rc_donor_directory_trigger();
+drop trigger if exists rc_sync_directory_from_availability on public.rc_donor_availability;
+create trigger rc_sync_directory_from_availability after insert or update or delete on public.rc_donor_availability
+for each row execute function private.sync_rc_donor_directory_trigger();
 
-create or replace function private.handle_new_user()
+create or replace function private.rc_handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  insert into public.user_profiles (
+  insert into public.rc_user_profiles (
     user_id, full_name, phone_number, phone_verified, blood_group, city, state, country, role,
     availability_status, profile_complete
   ) values (
@@ -385,12 +393,12 @@ begin
     'unavailable',
     false
   ) on conflict (user_id) do update set
-    phone_number = coalesce(nullif(excluded.phone_number, ''), public.user_profiles.phone_number),
-    phone_verified = excluded.phone_verified or public.user_profiles.phone_verified,
+    phone_number = coalesce(nullif(excluded.phone_number, ''), public.rc_user_profiles.phone_number),
+    phone_verified = excluded.phone_verified or public.rc_user_profiles.phone_verified,
     updated_at = now();
 
   if new.raw_user_meta_data->>'role' = 'organization' then
-    insert into public.organizations (owner_id, name, type, phone, email, city, address, license, lat, lng)
+    insert into public.rc_organizations (owner_id, name, type, phone, email, city, address, license, lat, lng)
     values (
       new.id,
       coalesce(new.raw_user_meta_data->>'organization_name', 'New organization'),
@@ -407,145 +415,145 @@ begin
   return new;
 end;
 $$;
-revoke all on function private.handle_new_user() from public, anon, authenticated;
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created after insert or update of phone_confirmed_at on auth.users
-for each row execute function private.handle_new_user();
+revoke all on function private.rc_handle_new_user() from public, anon, authenticated;
+drop trigger if exists rc_on_auth_user_created on auth.users;
+create trigger rc_on_auth_user_created after insert or update of phone_confirmed_at on auth.users
+for each row execute function private.rc_handle_new_user();
 
-alter table public.user_profiles enable row level security;
-alter table public.user_locations enable row level security;
-alter table public.donor_availability enable row level security;
-alter table public.donor_directory enable row level security;
-alter table public.organizations enable row level security;
-alter table public.organization_locations enable row level security;
-alter table public.organization_services enable row level security;
-alter table public.organization_inventory enable row level security;
-alter table public.blood_requests enable row level security;
-alter table public.blood_request_directory enable row level security;
-alter table public.donation_history enable row level security;
-alter table public.contact_requests enable row level security;
-alter table public.request_matches enable row level security;
+alter table public.rc_user_profiles enable row level security;
+alter table public.rc_user_locations enable row level security;
+alter table public.rc_donor_availability enable row level security;
+alter table public.rc_donor_directory enable row level security;
+alter table public.rc_organizations enable row level security;
+alter table public.rc_organization_locations enable row level security;
+alter table public.rc_organization_services enable row level security;
+alter table public.rc_organization_inventory enable row level security;
+alter table public.rc_blood_requests enable row level security;
+alter table public.rc_blood_request_directory enable row level security;
+alter table public.rc_donation_history enable row level security;
+alter table public.rc_contact_requests enable row level security;
+alter table public.rc_request_matches enable row level security;
 
-revoke all on table public.user_profiles, public.user_locations, public.donor_availability, public.donor_directory,
-  public.organizations, public.organization_locations, public.organization_services, public.organization_inventory,
-  public.blood_requests, public.blood_request_directory, public.donation_history, public.contact_requests, public.request_matches from anon, authenticated;
+revoke all on table public.rc_user_profiles, public.rc_user_locations, public.rc_donor_availability, public.rc_donor_directory,
+  public.rc_organizations, public.rc_organization_locations, public.rc_organization_services, public.rc_organization_inventory,
+  public.rc_blood_requests, public.rc_blood_request_directory, public.rc_donation_history, public.rc_contact_requests, public.rc_request_matches from anon, authenticated;
 
-grant select on public.donor_directory, public.organizations, public.organization_locations,
-  public.organization_services, public.organization_inventory, public.blood_request_directory to anon, authenticated;
-grant select on public.user_profiles to authenticated;
+grant select on public.rc_donor_directory, public.rc_organizations, public.rc_organization_locations,
+  public.rc_organization_services, public.rc_organization_inventory, public.rc_blood_request_directory to anon, authenticated;
+grant select on public.rc_user_profiles to authenticated;
 grant update (full_name, blood_group, date_of_birth, gender, city, state, country, last_donated_at,
-  next_eligible_date, donor_status, availability_status, profile_complete, updated_at) on public.user_profiles to authenticated;
-grant select, insert, update on public.user_locations, public.donor_availability to authenticated;
-grant insert, update on public.blood_requests to authenticated;
-grant select on public.blood_requests to authenticated;
-grant select on public.donation_history to authenticated;
-grant insert (user_id, donated_at, organization_id, component, verification_status) on public.donation_history to authenticated;
-grant update (verification_status, verified_by) on public.donation_history to authenticated;
-grant select on public.contact_requests to authenticated;
-grant insert (requester_id, recipient_id, blood_request_id, message, status) on public.contact_requests to authenticated;
-grant update (status, updated_at) on public.contact_requests to authenticated;
-grant select on public.request_matches to authenticated;
-grant update (name, type, phone, email, city, address, lat, lng, emergency_available, open_now, updated_at) on public.organizations to authenticated;
-grant insert, update, delete on public.organization_locations, public.organization_services, public.organization_inventory to authenticated;
+  next_eligible_date, donor_status, availability_status, profile_complete, updated_at) on public.rc_user_profiles to authenticated;
+grant select, insert, update on public.rc_user_locations, public.rc_donor_availability to authenticated;
+grant insert, update on public.rc_blood_requests to authenticated;
+grant select on public.rc_blood_requests to authenticated;
+grant select on public.rc_donation_history to authenticated;
+grant insert (user_id, donated_at, organization_id, component, verification_status) on public.rc_donation_history to authenticated;
+grant update (verification_status, verified_by) on public.rc_donation_history to authenticated;
+grant select on public.rc_contact_requests to authenticated;
+grant insert (requester_id, recipient_id, blood_request_id, message, status) on public.rc_contact_requests to authenticated;
+grant update (status, updated_at) on public.rc_contact_requests to authenticated;
+grant select on public.rc_request_matches to authenticated;
+grant update (name, type, phone, email, city, address, lat, lng, emergency_available, open_now, updated_at) on public.rc_organizations to authenticated;
+grant insert, update, delete on public.rc_organization_locations, public.rc_organization_services, public.rc_organization_inventory to authenticated;
 
-drop policy if exists "owners manage profiles" on public.user_profiles;
-drop policy if exists "owners read profiles" on public.user_profiles;
-create policy "owners read profiles" on public.user_profiles for select to authenticated using ((select auth.uid()) = user_id);
-drop policy if exists "owners insert profiles" on public.user_profiles;
-create policy "owners insert profiles" on public.user_profiles for insert to authenticated with check ((select auth.uid()) = user_id);
-drop policy if exists "owners update profiles" on public.user_profiles;
-create policy "owners update profiles" on public.user_profiles for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
-drop policy if exists "owners manage locations" on public.user_locations;
-drop policy if exists "owners read locations" on public.user_locations;
-create policy "owners read locations" on public.user_locations for select to authenticated using ((select auth.uid()) = user_id);
-drop policy if exists "owners insert locations" on public.user_locations;
-create policy "owners insert locations" on public.user_locations for insert to authenticated with check ((select auth.uid()) = user_id);
-drop policy if exists "owners update locations" on public.user_locations;
-create policy "owners update locations" on public.user_locations for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
-drop policy if exists "owners manage availability" on public.donor_availability;
-drop policy if exists "owners read availability" on public.donor_availability;
-create policy "owners read availability" on public.donor_availability for select to authenticated using ((select auth.uid()) = user_id);
-drop policy if exists "owners insert availability" on public.donor_availability;
-create policy "owners insert availability" on public.donor_availability for insert to authenticated with check ((select auth.uid()) = user_id);
-drop policy if exists "owners update availability" on public.donor_availability;
-create policy "owners update availability" on public.donor_availability for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
-drop policy if exists "safe donor directory is public" on public.donor_directory;
-create policy "safe donor directory is public" on public.donor_directory for select to anon, authenticated using (true);
+drop policy if exists "owners manage profiles" on public.rc_user_profiles;
+drop policy if exists "owners read profiles" on public.rc_user_profiles;
+create policy "owners read profiles" on public.rc_user_profiles for select to authenticated using ((select auth.uid()) = user_id);
+drop policy if exists "owners insert profiles" on public.rc_user_profiles;
+create policy "owners insert profiles" on public.rc_user_profiles for insert to authenticated with check ((select auth.uid()) = user_id);
+drop policy if exists "owners update profiles" on public.rc_user_profiles;
+create policy "owners update profiles" on public.rc_user_profiles for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+drop policy if exists "owners manage locations" on public.rc_user_locations;
+drop policy if exists "owners read locations" on public.rc_user_locations;
+create policy "owners read locations" on public.rc_user_locations for select to authenticated using ((select auth.uid()) = user_id);
+drop policy if exists "owners insert locations" on public.rc_user_locations;
+create policy "owners insert locations" on public.rc_user_locations for insert to authenticated with check ((select auth.uid()) = user_id);
+drop policy if exists "owners update locations" on public.rc_user_locations;
+create policy "owners update locations" on public.rc_user_locations for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+drop policy if exists "owners manage availability" on public.rc_donor_availability;
+drop policy if exists "owners read availability" on public.rc_donor_availability;
+create policy "owners read availability" on public.rc_donor_availability for select to authenticated using ((select auth.uid()) = user_id);
+drop policy if exists "owners insert availability" on public.rc_donor_availability;
+create policy "owners insert availability" on public.rc_donor_availability for insert to authenticated with check ((select auth.uid()) = user_id);
+drop policy if exists "owners update availability" on public.rc_donor_availability;
+create policy "owners update availability" on public.rc_donor_availability for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+drop policy if exists "safe donor directory is public" on public.rc_donor_directory;
+create policy "safe donor directory is public" on public.rc_donor_directory for select to anon, authenticated using (true);
 
-drop policy if exists "verified organizations are public" on public.organizations;
-create policy "verified organizations are public" on public.organizations for select to anon, authenticated
+drop policy if exists "verified organizations are public" on public.rc_organizations;
+create policy "verified organizations are public" on public.rc_organizations for select to anon, authenticated
 using (verified = true or (select auth.uid()) = owner_id);
-drop policy if exists "owners update organizations" on public.organizations;
-create policy "owners update organizations" on public.organizations for update to authenticated
+drop policy if exists "owners update organizations" on public.rc_organizations;
+create policy "owners update organizations" on public.rc_organizations for update to authenticated
 using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);
-drop policy if exists "verified organization locations are public" on public.organization_locations;
-create policy "verified organization locations are public" on public.organization_locations for select to anon, authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and (o.verified or o.owner_id = (select auth.uid()))));
-drop policy if exists "owners manage organization locations" on public.organization_locations;
-drop policy if exists "owners insert organization locations" on public.organization_locations;
-create policy "owners insert organization locations" on public.organization_locations for insert to authenticated
-with check (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "owners update organization locations" on public.organization_locations;
-create policy "owners update organization locations" on public.organization_locations for update to authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())))
-with check (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "owners delete organization locations" on public.organization_locations;
-create policy "owners delete organization locations" on public.organization_locations for delete to authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "verified organization services are public" on public.organization_services;
-create policy "verified organization services are public" on public.organization_services for select to anon, authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and (o.verified or o.owner_id = (select auth.uid()))));
-drop policy if exists "owners manage organization services" on public.organization_services;
-drop policy if exists "owners insert organization services" on public.organization_services;
-create policy "owners insert organization services" on public.organization_services for insert to authenticated
-with check (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "owners update organization services" on public.organization_services;
-create policy "owners update organization services" on public.organization_services for update to authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())))
-with check (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "owners delete organization services" on public.organization_services;
-create policy "owners delete organization services" on public.organization_services for delete to authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "verified organization inventory is public" on public.organization_inventory;
-create policy "verified organization inventory is public" on public.organization_inventory for select to anon, authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and (o.verified or o.owner_id = (select auth.uid()))));
-drop policy if exists "owners manage inventory" on public.organization_inventory;
-drop policy if exists "owners insert inventory" on public.organization_inventory;
-create policy "owners insert inventory" on public.organization_inventory for insert to authenticated
-with check (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "owners update inventory" on public.organization_inventory;
-create policy "owners update inventory" on public.organization_inventory for update to authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())))
-with check (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "owners delete inventory" on public.organization_inventory;
-create policy "owners delete inventory" on public.organization_inventory for delete to authenticated
-using (exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "verified organization locations are public" on public.rc_organization_locations;
+create policy "verified organization locations are public" on public.rc_organization_locations for select to anon, authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and (o.verified or o.owner_id = (select auth.uid()))));
+drop policy if exists "owners manage organization locations" on public.rc_organization_locations;
+drop policy if exists "owners insert organization locations" on public.rc_organization_locations;
+create policy "owners insert organization locations" on public.rc_organization_locations for insert to authenticated
+with check (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "owners update organization locations" on public.rc_organization_locations;
+create policy "owners update organization locations" on public.rc_organization_locations for update to authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())))
+with check (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "owners delete organization locations" on public.rc_organization_locations;
+create policy "owners delete organization locations" on public.rc_organization_locations for delete to authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "verified organization services are public" on public.rc_organization_services;
+create policy "verified organization services are public" on public.rc_organization_services for select to anon, authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and (o.verified or o.owner_id = (select auth.uid()))));
+drop policy if exists "owners manage organization services" on public.rc_organization_services;
+drop policy if exists "owners insert organization services" on public.rc_organization_services;
+create policy "owners insert organization services" on public.rc_organization_services for insert to authenticated
+with check (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "owners update organization services" on public.rc_organization_services;
+create policy "owners update organization services" on public.rc_organization_services for update to authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())))
+with check (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "owners delete organization services" on public.rc_organization_services;
+create policy "owners delete organization services" on public.rc_organization_services for delete to authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "verified organization inventory is public" on public.rc_organization_inventory;
+create policy "verified organization inventory is public" on public.rc_organization_inventory for select to anon, authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and (o.verified or o.owner_id = (select auth.uid()))));
+drop policy if exists "owners manage inventory" on public.rc_organization_inventory;
+drop policy if exists "owners insert inventory" on public.rc_organization_inventory;
+create policy "owners insert inventory" on public.rc_organization_inventory for insert to authenticated
+with check (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "owners update inventory" on public.rc_organization_inventory;
+create policy "owners update inventory" on public.rc_organization_inventory for update to authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())))
+with check (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "owners delete inventory" on public.rc_organization_inventory;
+create policy "owners delete inventory" on public.rc_organization_inventory for delete to authenticated
+using (exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
 
-drop policy if exists "public reads safe open requests" on public.blood_requests;
-drop policy if exists "owners read private requests" on public.blood_requests;
-create policy "owners read private requests" on public.blood_requests for select to authenticated
+drop policy if exists "public reads safe open requests" on public.rc_blood_requests;
+drop policy if exists "owners read private requests" on public.rc_blood_requests;
+create policy "owners read private requests" on public.rc_blood_requests for select to authenticated
 using ((select auth.uid()) = owner_id);
-drop policy if exists "public reads request directory" on public.blood_request_directory;
-create policy "public reads request directory" on public.blood_request_directory for select to anon, authenticated using (needed_by > now());
-drop policy if exists "owners create requests" on public.blood_requests;
-create policy "owners create requests" on public.blood_requests for insert to authenticated
+drop policy if exists "public reads request directory" on public.rc_blood_request_directory;
+create policy "public reads request directory" on public.rc_blood_request_directory for select to anon, authenticated using (needed_by > now());
+drop policy if exists "owners create requests" on public.rc_blood_requests;
+create policy "owners create requests" on public.rc_blood_requests for insert to authenticated
 with check ((select auth.uid()) = owner_id);
-drop policy if exists "owners update requests" on public.blood_requests;
-create policy "owners update requests" on public.blood_requests for update to authenticated
+drop policy if exists "owners update requests" on public.rc_blood_requests;
+create policy "owners update requests" on public.rc_blood_requests for update to authenticated
 using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);
 
-drop policy if exists "owners read donation history" on public.donation_history;
-create policy "owners read donation history" on public.donation_history for select to authenticated
-using ((select auth.uid()) = user_id or exists (select 1 from public.organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
-drop policy if exists "owners submit pending donations" on public.donation_history;
-create policy "owners submit pending donations" on public.donation_history for insert to authenticated
+drop policy if exists "owners read donation history" on public.rc_donation_history;
+create policy "owners read donation history" on public.rc_donation_history for select to authenticated
+using ((select auth.uid()) = user_id or exists (select 1 from public.rc_organizations o where o.id = organization_id and o.owner_id = (select auth.uid())));
+drop policy if exists "owners submit pending donations" on public.rc_donation_history;
+create policy "owners submit pending donations" on public.rc_donation_history for insert to authenticated
 with check ((select auth.uid()) = user_id and verification_status = 'pending' and verified_by is null);
-drop policy if exists "assigned organizations verify donations" on public.donation_history;
-create policy "assigned organizations verify donations" on public.donation_history for update to authenticated
+drop policy if exists "assigned organizations verify donations" on public.rc_donation_history;
+create policy "assigned organizations verify donations" on public.rc_donation_history for update to authenticated
 using (
   verification_status = 'pending'
   and exists (
-    select 1 from public.organizations o
+    select 1 from public.rc_organizations o
     where o.id = organization_id and o.owner_id = (select auth.uid()) and o.verified = true
   )
 )
@@ -553,44 +561,44 @@ with check (
   verification_status in ('verified','rejected')
   and verified_by = (select auth.uid())
   and exists (
-    select 1 from public.organizations o
+    select 1 from public.rc_organizations o
     where o.id = organization_id and o.owner_id = (select auth.uid()) and o.verified = true
   )
 );
 
-drop policy if exists "participants read contact requests" on public.contact_requests;
-create policy "participants read contact requests" on public.contact_requests for select to authenticated
+drop policy if exists "participants read contact requests" on public.rc_contact_requests;
+create policy "participants read contact requests" on public.rc_contact_requests for select to authenticated
 using ((select auth.uid()) in (requester_id, recipient_id));
-drop policy if exists "members create contact requests" on public.contact_requests;
-create policy "members create contact requests" on public.contact_requests for insert to authenticated
+drop policy if exists "members create contact requests" on public.rc_contact_requests;
+create policy "members create contact requests" on public.rc_contact_requests for insert to authenticated
 with check (
   (select auth.uid()) = requester_id
   and requester_id <> recipient_id
   and status = 'pending'
   and exists (
-    select 1 from public.user_profiles p
+    select 1 from public.rc_user_profiles p
     where p.user_id = (select auth.uid()) and p.phone_verified = true
   )
 );
-drop policy if exists "recipients respond to contact requests" on public.contact_requests;
-create policy "recipients respond to contact requests" on public.contact_requests for update to authenticated
+drop policy if exists "recipients respond to contact requests" on public.rc_contact_requests;
+create policy "recipients respond to contact requests" on public.rc_contact_requests for update to authenticated
 using ((select auth.uid()) = recipient_id) with check ((select auth.uid()) = recipient_id and status in ('approved','declined'));
 
-drop policy if exists "request owners read matches" on public.request_matches;
-create policy "request owners read matches" on public.request_matches for select to authenticated
-using (exists (select 1 from public.blood_requests r where r.id = blood_request_id and r.owner_id = (select auth.uid())) or donor_id = (select auth.uid()));
+drop policy if exists "request owners read matches" on public.rc_request_matches;
+create policy "request owners read matches" on public.rc_request_matches for select to authenticated
+using (exists (select 1 from public.rc_blood_requests r where r.id = blood_request_id and r.owner_id = (select auth.uid())) or donor_id = (select auth.uid()));
 
 do $$ begin
   if not exists (
     select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'blood_request_directory'
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'rc_blood_request_directory'
   ) then
-    alter publication supabase_realtime add table public.blood_request_directory;
+    alter publication supabase_realtime add table public.rc_blood_request_directory;
   end if;
   if not exists (
     select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'contact_requests'
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'rc_contact_requests'
   ) then
-    alter publication supabase_realtime add table public.contact_requests;
+    alter publication supabase_realtime add table public.rc_contact_requests;
   end if;
 end $$;

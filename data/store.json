@@ -1,13 +1,73 @@
 {
-  "users": [],
-  "organizations": [
-    {"id":"org-1","name":"Lifeline Community Blood Centre","type":"Blood bank","phone":"+91 98765 43210","email":"help@lifeline.example","city":"Bengaluru","address":"Indiranagar, Bengaluru","license":"DEMO-KA-101","lat":12.9784,"lng":77.6408,"verified":true,"inventory":{"O+":12,"A+":8,"B+":6,"AB+":3,"O-":2}},
-    {"id":"org-2","name":"Jeevan Care Network","type":"NGO","phone":"+91 98111 22334","email":"connect@jeevan.example","city":"Bengaluru","address":"Jayanagar, Bengaluru","license":"DEMO-KA-102","lat":12.925,"lng":77.5938,"verified":true,"inventory":{"O+":7,"A+":4,"B-":2,"AB-":1}}
+  "auth_users": [],
+  "rc_user_profiles": [],
+  "rc_user_locations": [],
+  "rc_donor_availability": [],
+  "rc_organizations": [
+    {
+      "id": "org-1",
+      "owner_id": null,
+      "name": "Lifeline Community Blood Centre",
+      "type": "Blood bank",
+      "phone": "+91 98765 43210",
+      "email": "help@lifeline.example",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "address": "Indiranagar, Bengaluru",
+      "license": "DEMO-KA-101",
+      "lat": 12.9784,
+      "lng": 77.6408,
+      "verified": true,
+      "emergency_available": true,
+      "open_now": true,
+      "created_at": "2026-09-22T08:00:00.000Z",
+      "updated_at": "2026-09-25T08:00:00.000Z"
+    },
+    {
+      "id": "org-2",
+      "owner_id": null,
+      "name": "Jeevan Care Network",
+      "type": "NGO",
+      "phone": "+91 98111 22334",
+      "email": "connect@jeevan.example",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "address": "Jayanagar, Bengaluru",
+      "license": "DEMO-KA-102",
+      "lat": 12.925,
+      "lng": 77.5938,
+      "verified": true,
+      "emergency_available": false,
+      "open_now": null,
+      "created_at": "2026-09-22T08:00:00.000Z",
+      "updated_at": "2026-09-25T08:00:00.000Z"
+    }
   ],
-  "requests": [
-    {"id":"req-1","ownerId":"demo","patientName":"Ananya R.","bloodGroup":"O+","units":2,"component":"Packed red cells","hospital":"Victoria Hospital","city":"Bengaluru","phone":"+91 90000 10001","notes":"Replacement donor accepted at blood bank.","neededBy":"2026-09-23T12:00:00.000Z","lat":12.9634,"lng":77.5739,"status":"open","createdAt":"2026-09-22T08:00:00.000Z"},
-    {"id":"req-2","ownerId":"demo","patientName":"Ravi K.","bloodGroup":"B-","units":1,"component":"Whole blood","hospital":"St. John's Medical College","city":"Bengaluru","phone":"+91 90000 10002","notes":"Please call before arriving.","neededBy":"2026-09-24T08:30:00.000Z","lat":12.9293,"lng":77.6186,"status":"open","createdAt":"2026-09-22T09:00:00.000Z"}
+  "rc_organization_locations": [
+    { "id": "org-1-main", "organization_id": "org-1", "label": "Main location", "address": "Indiranagar, Bengaluru", "city": "Bengaluru", "state": "Karnataka", "country": "India", "latitude": 12.9784, "longitude": 77.6408, "created_at": "2026-09-22T08:00:00.000Z" },
+    { "id": "org-2-main", "organization_id": "org-2", "label": "Main location", "address": "Jayanagar, Bengaluru", "city": "Bengaluru", "state": "Karnataka", "country": "India", "latitude": 12.925, "longitude": 77.5938, "created_at": "2026-09-22T08:00:00.000Z" }
   ],
-  "donations": [],
-  "contactRequests": []
+  "rc_organization_services": [
+    { "organization_id": "org-1", "service": "Emergency blood support", "emergency_available": true, "created_at": "2026-09-22T08:00:00.000Z" },
+    { "organization_id": "org-1", "service": "Blood components", "emergency_available": true, "created_at": "2026-09-22T08:00:00.000Z" },
+    { "organization_id": "org-2", "service": "Donor coordination", "emergency_available": false, "created_at": "2026-09-22T08:00:00.000Z" }
+  ],
+  "rc_organization_inventory": [
+    { "organization_id": "org-1", "blood_group": "O+", "units": 12, "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "organization_id": "org-1", "blood_group": "A+", "units": 8, "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "organization_id": "org-1", "blood_group": "B+", "units": 6, "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "organization_id": "org-1", "blood_group": "AB+", "units": 3, "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "organization_id": "org-1", "blood_group": "O-", "units": 2, "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "organization_id": "org-2", "blood_group": "O+", "units": 7, "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "organization_id": "org-2", "blood_group": "A+", "units": 4, "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "organization_id": "org-2", "blood_group": "B-", "units": 2, "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "organization_id": "org-2", "blood_group": "AB-", "units": 1, "updated_at": "2026-09-25T08:00:00.000Z" }
+  ],
+  "rc_blood_requests": [
+    { "id": "req-1", "owner_id": "demo", "patient_name": "Ananya R.", "blood_group": "O+", "units": 2, "component": "Packed red cells", "hospital": "Victoria Hospital", "city": "Bengaluru", "phone": "+91 90000 10001", "notes": "Replacement donor accepted at blood bank.", "needed_by": "2026-09-27T12:00:00.000Z", "lat": 12.9634, "lng": 77.5739, "status": "open", "created_at": "2026-09-25T08:00:00.000Z", "updated_at": "2026-09-25T08:00:00.000Z" },
+    { "id": "req-2", "owner_id": "demo", "patient_name": "Ravi K.", "blood_group": "B-", "units": 1, "component": "Whole blood", "hospital": "St. John's Medical College", "city": "Bengaluru", "phone": "+91 90000 10002", "notes": "Please call before arriving.", "needed_by": "2026-09-28T08:30:00.000Z", "lat": 12.9293, "lng": 77.6186, "status": "open", "created_at": "2026-09-25T09:00:00.000Z", "updated_at": "2026-09-25T09:00:00.000Z" }
+  ],
+  "rc_donation_history": [],
+  "rc_contact_requests": [],
+  "rc_request_matches": []
 }
